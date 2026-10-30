@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editora de vídeo · Video editor</title>
+<meta name="description" content="Edición de vídeos hablados a cámara para marca personal y apps.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0a12;
+    --bg-2: #15121e;
+    --line: #2b2638;
+    --text: #f3efe9;
+    --mute: #9a93a8;
+    --hot: #ff6a3d;
+    --display: "Sora", "Arial Black", system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+  body::before {
+    content: ""; position: fixed; inset: -20%; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(40% 30% at 20% 20%, rgba(255,106,61,.22), transparent 70%),
+      radial-gradient(35% 30% at 80% 60%, rgba(123,108,255,.22), transparent 70%);
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+  @keyframes drift { to { transform: translate3d(4%, -3%, 0) scale(1.08); } }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--hot); outline-offset: 4px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 26px 0;
+  }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 20px; text-decoration: none; letter-spacing: -0.01em; }
+  .lang { display: flex; gap: 6px; background: rgba(255,255,255,.05); padding: 4px; border-radius: 999px; border: 1px solid var(--line); }
+  .lang button {
+    background: none; border: 0; color: var(--mute); font: inherit; font-size: 13px; font-weight: 500;
+    padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: color .25s, background .25s;
+  }
+  .lang button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+
+  .hero { padding: 70px 0 40px; }
+  .hero h1 {
+    font-family: var(--display); font-weight: 800;
+    font-size: clamp(48px, 9vw, 128px); line-height: .95; letter-spacing: -0.04em;
+  }
+  .hero h1 .w { display: inline-block; opacity: 0; transform: translateY(40%); animation: rise .8s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: calc(var(--i) * 90ms); }
+  .hero h1 .hot { color: var(--hot); }
+  .hero h1 .c1 { color: #e9e4ff; }
+  .hero h1 .c2 { color: #a99cff; }
+  .hero h1 .under { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: .14em; }
+  /* Subtítulo: bloque propio para que su interlineado no herede el del titular grande */
+  .hero h1 .sub {
+    display: block; font-size: .55em; line-height: 1.02; letter-spacing: -0.03em;
+    margin-top: .3em; text-wrap: balance;
+  }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .hero p { margin-top: 30px; max-width: 46ch; color: var(--mute); font-size: 18px; }
+
+  .switch {
+    margin-top: 56px; display: inline-flex; position: relative; background: var(--bg-2);
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px; gap: 2px;
+  }
+  .switch .pill {
+    position: absolute; top: 6px; bottom: 6px; left: 6px; width: 0;
+    background: var(--text); border-radius: 999px;
+    transition: transform .45s cubic-bezier(.2,.8,.2,1), width .45s cubic-bezier(.2,.8,.2,1);
+  }
+  .switch button {
+    position: relative; z-index: 1; background: none; border: 0; color: var(--mute); font: 500 15px var(--body);
+    padding: 10px 20px; border-radius: 999px; cursor: pointer; transition: color .3s; white-space: nowrap;
+  }
+  .switch button[aria-selected="true"] { color: var(--bg); }
+  .hero p.cat-desc {
+    margin-top: 22px; max-width: 58ch; font-size: 16px; color: var(--mute);
+    padding-left: 14px; border-left: 2px solid var(--hot);
+    animation: fadeUp .5s ease both;
+  }
+  .hero p.cat-desc:empty { display: none; }
+
+  .gallery {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 80px 40px; padding: 80px 0 120px; align-items: start;
+  }
+  .item:nth-child(3n+2) { margin-top: 90px; }
+  .item:nth-child(3n) { margin-top: 40px; }
+  .item { animation: fadeUp .6s ease both; animation-delay: calc(var(--k, 0) * 70ms); }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } }
+
+  .phone {
+    display: block; position: relative; width: 100%; max-width: 280px; margin: 0 auto;
+    padding: 9px; border-radius: 36px; cursor: pointer; border: 0;
+    background: linear-gradient(160deg, #3a3550, #17141f 45%, #2a2638);
+    box-shadow: 0 0 0 1px #4a4460 inset, 0 40px 80px -30px rgba(0,0,0,.8);
+    transform: rotate(var(--tilt, 0deg));
+    transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s;
+  }
+  .phone:hover, .phone:focus-visible { transform: rotate(0) translateY(-8px); }
+  .phone.is-playing { box-shadow: 0 0 0 1px #4a4460 inset, 0 40px 90px -20px rgba(255,106,61,.35); }
+  .screen {
+    /* Pantalla 9:16, igual que los vídeos de 720×1280 */
+    position: relative; width: 100%; aspect-ratio: 720 / 1280; border-radius: 28px;
+    overflow: hidden; background: #000;
+  }
+  .screen::before {
+    content: ""; position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 70px; height: 20px; border-radius: 20px; background: #000; z-index: 3;
+    transition: opacity .3s;
+  }
+  /* La "isla" se oculta al reproducir para no tapar el vídeo */
+  .phone.is-playing .screen::before { opacity: 0; }
+  .screen > video, .screen > iframe, .screen > .poster {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0;
+  }
+  .poster { background: linear-gradient(160deg, var(--c1, #ff6a3d), var(--c2, #7b6cff)); }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .play {
+    position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 68px; height: 68px; border-radius: 50%; background: rgba(12,10,18,.55);
+    backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.35);
+    transition: opacity .3s, transform .3s;
+  }
+  .play::after {
+    content: ""; position: absolute; top: 50%; left: 54%; transform: translate(-50%, -50%);
+    border-style: solid; border-width: 11px 0 11px 18px; border-color: transparent transparent transparent var(--text);
+  }
+  .phone:hover .play { transform: translate(-50%, -50%) scale(1.08); }
+  .phone.is-playing .play { opacity: 0; pointer-events: none; }
+  .phone.is-started .poster { display: none; }
+
+  /* Barra para avanzar / retroceder */
+  .screen::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; z-index: 3;
+    background: linear-gradient(transparent, rgba(0,0,0,.55)); pointer-events: none;
+    opacity: 0; transition: opacity .3s;
+  }
+  .phone.is-started .screen::after { opacity: 1; }
+  .seek {
+    position: absolute; z-index: 4; left: 16px; right: 16px; bottom: 14px; width: calc(100% - 32px);
+    -webkit-appearance: none; appearance: none; height: 24px; margin: 0;
+    background: transparent; cursor: pointer; touch-action: none;
+    opacity: 0; pointer-events: none; transition: opacity .3s;
+  }
+  .phone.is-started .seek { opacity: 1; pointer-events: auto; }
+  .seek::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 4px;
+    background: linear-gradient(to right, var(--hot) var(--p, 0%), rgba(255,255,255,.35) var(--p, 0%));
+  }
+  .seek::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  }
+  .seek::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255,255,255,.35); }
+  .seek::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--hot); }
+  .seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
+  .seek:focus-visible { outline-offset: 2px; }
+
+  .info { margin-top: 26px; text-align: center; }
+  .info h3 { font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: -0.01em; line-height: 1.05; text-wrap: balance; }
+  .info .meta { color: var(--mute); font-size: 14px; margin-top: 6px; }
+  .info .result { font-size: 15px; margin-top: 10px; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+  .tags span { font-size: 12px; color: var(--text); background: rgba(255,255,255,.06); padding: 4px 10px; border-radius: 999px; }
+
+  .about {
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 60px; padding: 110px 0;
+    border-top: 1px solid var(--line);
+  }
+  .about h2 { font-family: var(--display); font-weight: 800; font-size: clamp(36px, 5vw, 56px); line-height: 1; letter-spacing: -0.03em; margin-bottom: 24px; }
+  .about p { color: var(--mute); margin-bottom: 16px; max-width: 52ch; font-size: 17px; }
+  .services h3 { font-family: var(--display); font-weight: 700; font-size: 20px; margin-bottom: 14px; }
+  .services ul { list-style: none; }
+  .services li { padding: 14px 0; border-bottom: 1px solid var(--line); color: var(--text); }
+
+  footer.contact { padding: 120px 0 60px; text-align: center; }
+  footer.contact h2 { font-family: var(--display); font-weight: 800; font-size: clamp(44px, 8vw, 104px); line-height: .95; letter-spacing: -0.04em; text-wrap: balance; }
+  footer.contact h2 span { color: var(--hot); }
+  footer.contact a.mail {
+    display: inline-block; margin-top: 36px; font-family: var(--display); font-size: 22px;
+    padding: 16px 30px; border-radius: 999px; background: var(--text); color: var(--bg); text-decoration: none;
+    max-width: 100%; overflow-wrap: anywhere;
+    transition: transform .3s;
+  }
+  footer.contact a.mail:hover { transform: scale(1.04); }
+  footer.contact .small { margin-top: 80px; color: var(--mute); font-size: 13px; }
+
+  @media (max-width: 820px) {
+    .about { grid-template-columns: 1fr; gap: 40px; padding: 70px 0; }
+    .item:nth-child(n) { margin-top: 0; }
+    .gallery { gap: 60px 24px; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 0 16px; }
+    .hero { padding-top: 40px; }
+    .switch { display: flex; width: 100%; margin-top: 40px; }
+    .switch button { flex: 1 1 auto; padding: 10px 10px; font-size: 13px; }
+    footer.contact a.mail { font-size: 17px; padding: 14px 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation: none !important; transition: none !important; }
+    .hero h1 .w { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#inicio">Anna Cardiel</a>
+    <div class="lang" role="group" aria-label="Idioma / Language">
+      <button type="button" data-lang="es" aria-pressed="true">ES</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </header>
+
+  <section class="hero" id="inicio">
+    <h1 id="heroTitle"></h1>
+    <p id="heroText"></p>
+
+    <div class="switch" role="tablist" aria-label="Categorías / Categories">
+      <span class="pill" id="pill"></span>
+      <button role="tab" aria-selected="true" data-cat="main"></button>
+      <button role="tab" aria-selected="false" data-cat="apps"></button>
+      <button role="tab" aria-selected="false" data-cat="ads"></button>
+    </div>
+    <p class="cat-desc" id="catDesc" aria-live="polite"></p>
+  </section>
+
+  <section class="gallery" id="gallery" aria-live="polite"></section>
+
+  <section class="about" id="sobre">
+    <div>
+      <h2 id="aboutTitle"></h2>
+      <p id="aboutP1"></p>
+      <p id="aboutP2"></p>
+    </div>
+    <div class="services">
+      <h3 id="servTitle"></h3>
+      <ul id="servList"></ul>
+    </div>
+  </section>
+
+  <footer class="contact" id="contacto">
+    <h2 id="contactTitle"></h2>
+    <a class="mail" href="mailto:annacardielg@gmail.com">annacardielg@gmail.com</a>
+    <p class="small">© <span id="year"></span> Anna Cardiel</p>
+  </footer>
+</div>
+
+<script>
+  /* ============================================================
+     PROYECTOS: edita esta lista. Cada proyecto necesita:
+     - cat: "main" | "apps" | "ads"
+     - src: ruta al .mp4 dentro de videos/      (o null)
+     - vimeo: ID de Vimeo si lo alojas allí     (o null)
+     - poster: ruta a la imagen de portada en posters/
+     - c1 / c2: colores de respaldo mientras carga la portada
+     ============================================================ */
+  const PROJECTS = [
+    {
+      cat: "main", src: "videos/finanzas.mp4", vimeo: null, poster: "posters/finanzas.jpg",
+      c1: "#ff6a3d", c2: "#7b6cff",
+      es: { t: "Creador de finanzas personales", m: "Marca personal · 60 s · Shorts", r: "Retención media del 68 % en los primeros 30 s.", tags: ["Cortes dinámicos", "Subtítulos"] },
+      en: { t: "Personal finance creator", m: "Personal brand · 60 s · Shorts", r: "68 % average retention over the first 30 s.", tags: ["Dynamic cuts", "Captions"] }
+    },
+    {
+      cat: "main", src: null, vimeo: null, poster: "posters/estudio.jpg",
+      c1: "#7b6cff", c2: "#2b2638",
+      es: { t: "Fundadora de un estudio de diseño", m: "Marca personal · 3 min · YouTube", r: "Presentación de servicios para LinkedIn.", tags: ["Gráficos en pantalla", "Color"] },
+      en: { t: "Design studio founder", m: "Personal brand · 3 min · YouTube", r: "Services presentation for LinkedIn.", tags: ["On-screen graphics", "Colour"] }
+    },
+    {
+      cat: "main", src: null, vimeo: null, poster: "posters/productividad.jpg",
+      c1: "#ffb347", c2: "#ff3d7f",
+      es: { t: "Coach de productividad", m: "Marca personal · 45 s · Reels", r: "Serie semanal con formato de consejo rápido.", tags: ["Gancho inicial"] },
+      en: { t: "Productivity coach", m: "Personal brand · 45 s · Reels", r: "Weekly series in a quick-tip format.", tags: ["Opening hook"] }
+    },
+    {
+      cat: "apps", src: "videos/gertugo-ranking.mp4", vimeo: null, poster: "posters/gertugo-ranking.jpg",
+      c1: "#ff6a3d", c2: "#7b6cff",
+      es: { t: "Top 5 cosas", m: "Contenido orgánico", r: "", tags: ["Formato ranking", "Edición avanzada"] },
+      en: { t: "Top 5 things", m: "Organic content", r: "", tags: ["Ranking format", "Advanced editing"] }
+    },
+    {
+      cat: "apps", src: "videos/gertugo-enumeracion.mp4", vimeo: null, poster: "posters/gertugo-enumeracion.jpg",
+      c1: "#3dd6c5", c2: "#2b2638",
+      es: { t: "¿Qué puedes alquilar?", m: "Contenido orgánico", r: "", tags: ["Formato enumeración", "Edición avanzada"] },
+      en: { t: "What can you rent?", m: "Organic content", r: "", tags: ["Listing format", "Advanced editing"] }
+    },
+    {
+      cat: "apps", src: "videos/gertugo-entrevista.mp4", vimeo: null, poster: "posters/gertugo-entrevista.jpg",
+      c1: "#ffb347", c2: "#ff3d7f",
+      es: { t: "Entrevista callejera", m: "Contenido orgánico", r: "", tags: ["Entrevista callejera", "Color grading", "Edición simple"] },
+      en: { t: "Street interview", m: "Organic content", r: "", tags: ["Street interview", "Color grading", "Simple editing"] }
+    },
+    {
+      cat: "ads", src: "videos/yousra-embarazo.mp4", vimeo: null, poster: "posters/yousra-embarazo.jpg",
+      c1: "#c98a9a", c2: "#2b2638",
+      es: { t: "Fisioterapia en el embarazo", m: "Meta Ads", r: "", tags: ["B2C", "Edición avanzada"] },
+      en: { t: "Physiotherapy in pregnancy", m: "Meta Ads", r: "", tags: ["B2C", "Advanced editing"] }
+    },
+    {
+      cat: "ads", src: "videos/calendario-velas.mp4", vimeo: null, poster: "posters/calendario-velas.jpg",
+      c1: "#b3262e", c2: "#2b2638",
+      es: { t: "Un calendario de Adviento diferente", m: "Meta Ads", r: "", tags: ["B2C", "Edición avanzada"] },
+      en: { t: "A different kind of Advent calendar", m: "Meta Ads", r: "", tags: ["B2C", "Advanced editing"] }
+    },
+    {
+      cat: "ads", src: "videos/pigut-vipday.mp4", vimeo: null, poster: "posters/pigut-vipday.jpg",
+      c1: "#d8c7a8", c2: "#2b2638",
+      es: { t: "Formación VIP Day", m: "Meta Ads", r: "", tags: ["B2B", "Edición avanzada"] },
+      en: { t: "VIP Day training", m: "Meta Ads", r: "", tags: ["B2B", "Advanced editing"] }
+    }
+  ];
+
+  /* ============================================================
+     TEXTOS DE LA PÁGINA (ES / EN)
+     heroWords: palabras del titular ("|" = salto de línea)
+     heroSub:   subtítulo pequeño bajo el titular
+     ============================================================ */
+  const T = {
+    es: {
+      heroWords: ["<span class='c1'>Tu</span>", "<span class='c1'>visión.</span>", "|", "<span class='c2'>Mi</span>", "<span class='c2'>edición.</span>"],
+      heroSub: "Una historia que merece ser <span class='under'>contada.</span>",
+      heroText: "¡Hola! Soy Anna, la cabeza pensante y ejecutiva de la siguiente selección de proyectos. Si el vídeo que tienes en mente no encaja con lo que ves, contáctame inmediatamente. ⚠️ Adoro los retos.",
+      catMain: "Marca personal", catApps: "Apps", catAds: "Meta Ads",
+      catDesc: {
+        ads: "Vídeos con edición estratégica orientada a la conversión. Ganchos visuales y textuales que captan la atención desde los primeros segundos, ritmos dinámicos y una estructura pensada para convertir clientes potenciales en clientes asegurados."
+      },
+      aboutTitle: "Sobre mí",
+      aboutP1: "Llevo años editando vídeos para personas que hablan a cámara. Mi trabajo es que lo que dices se entienda, se siga y se recuerde.",
+      aboutP2: "Trabajo con creadores, marcas personales y equipos de producto. Edito en español e inglés y adapto el ritmo a cada plataforma.",
+      servTitle: "Servicios",
+      servs: ["Vídeos a cámara para marca personal", "Vídeos de producto y anuncios para apps", "Subtítulos en español e inglés", "Corrección de color y música"],
+      contactTitle: "¿Hablamos de tu próximo <span>vídeo?</span>",
+      play: "Reproducir", seek: "Avanzar o retroceder el vídeo", title: "Editora de vídeo · Video editor"
+    },
+    en: {
+      heroWords: ["<span class='c1'>Your</span>", "<span class='c1'>vision.</span>", "|", "<span class='c2'>My</span>", "<span class='c2'>edit.</span>"],
+      heroSub: "A story worth <span class='under'>telling.</span>",
+      heroText: "Hi! I'm Anna, the brains and driving force behind the selected projects you're about to see. If the video you have in mind doesn't fit what you see here, reach out to me right away. ⚠️ I love a challenge.",
+      catMain: "Personal brand", catApps: "Apps", catAds: "Meta Ads",
+      catDesc: {
+        ads: "Videos with strategic, conversion-focused editing. Visual and text hooks that grab attention from the very first seconds, dynamic pacing and a structure designed to turn leads into real customers."
+      },
+      aboutTitle: "About me",
+      aboutP1: "I have been editing talking-head videos for years. My job is to make what you say easy to follow and easy to remember.",
+      aboutP2: "I work with creators, personal brands and product teams. I edit in Spanish and English and adapt the pacing to each platform.",
+      servTitle: "Services",
+      servs: ["Talking-head videos for personal brands", "Product videos and app ads", "Captions in Spanish and English", "Colour grading and music"],
+      contactTitle: "Shall we talk about your next <span>video?</span>",
+      play: "Play", seek: "Seek through the video", title: "Video editor · Editora de vídeo"
+    }
+  };
+
+  let lang = "es";
+  let cat = "main";
+  const $ = id => document.getElementById(id);
+
+  function renderStatic() {
+    const t = T[lang];
+    const words = t.heroWords
+      .map((w, i) => w === "|" ? "<br>" : `<span class="w" style="--i:${i}">${w}</span>`)
+      .join(" ");
+    $("heroTitle").innerHTML = words + `<span class="w sub" style="--i:${t.heroWords.length}">${t.heroSub}</span>`;
+    $("heroText").textContent = t.heroText;
+    document.querySelectorAll(".switch button").forEach(b => {
+      b.textContent = { main: t.catMain, apps: t.catApps, ads: t.catAds }[b.dataset.cat];
+    });
+    renderCatDesc();
+    $("aboutTitle").textContent = t.aboutTitle;
+    $("aboutP1").textContent = t.aboutP1;
+    $("aboutP2").textContent = t.aboutP2;
+    $("servTitle").textContent = t.servTitle;
+    $("servList").innerHTML = t.servs.map(s => `<li>${s}</li>`).join("");
+    $("contactTitle").innerHTML = t.contactTitle;
+    $("year").textContent = new Date().getFullYear();
+    document.documentElement.lang = lang;
+    document.title = t.title;
+    document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    moveIndicator();
+  }
+
+  function card(p, k) {
+    const x = p[lang];
+    const video = p.src ? `<video preload="none" muted playsinline loop poster="${p.poster}" src="${p.src}"></video>` : "";
+    const style = `--c1:${p.c1};--c2:${p.c2};--tilt:${k % 2 ? 2 : -2}deg`;
+    return `
+      <article class="item" style="--k:${k}">
+        <div class="phone" role="button" tabindex="0" style="${style}" aria-label="${x.t}: ${T[lang].play}"
+                data-vimeo="${p.vimeo || ""}">
+          <div class="screen">
+            ${video}
+            <div class="poster"><img src="${p.poster}" alt="" loading="lazy" onerror="this.remove()"></div>
+            <span class="play" aria-hidden="true"></span>
+            ${p.src ? `<input type="range" class="seek" min="0" max="1000" step="1" value="0" aria-label="${T[lang].seek}">` : ""}
+          </div>
+        </div>
+        <div class="info">
+          <h3>${x.t}</h3>
+          <p class="meta">${x.m}</p>
+          ${x.r ? `<p class="result">${x.r}</p>` : ""}
+          <div class="tags">${x.tags.map(t => `<span>${t}</span>`).join("")}</div>
+        </div>
+      </article>`;
+  }
+
+  function renderGallery() {
+    $("gallery").innerHTML = PROJECTS.filter(p => p.cat === cat).map(card).join("");
+  }
+
+  function moveIndicator() {
+    const btn = document.querySelector(`.switch button[data-cat="${cat}"]`);
+    if (!btn) return;
+    const pill = $("pill");
+    pill.style.width = btn.offsetWidth + "px";
+    pill.style.transform = `translateX(${btn.offsetLeft - 6}px)`;
+  }
+
+  /* Descripción opcional bajo el selector (solo si la categoría la tiene) */
+  function renderCatDesc() {
+    const el = $("catDesc");
+    el.textContent = T[lang].catDesc[cat] || "";
+    el.style.animation = "none"; el.offsetHeight; el.style.animation = "";
+  }
+
+  function setCat(c) {
+    cat = c;
+    renderCatDesc();
+    document.querySelectorAll(".switch button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.cat === c)));
+    renderGallery();
+    moveIndicator();
+  }
+
+  /* Un clic reproduce con sonido y pausa el resto; otro clic lo pausa */
+  $("gallery").addEventListener("click", e => {
+    if (e.target.closest(".seek")) return; // la barra no pausa ni reproduce
+    const btn = e.target.closest(".phone");
+    if (!btn) return;
+    const screen = btn.querySelector(".screen");
+    const video = screen.querySelector("video");
+
+    if (video) {
+      if (video.paused) {
+        document.querySelectorAll("video").forEach(v => v !== video && v.pause());
+        document.querySelectorAll(".phone.is-playing").forEach(p => p !== btn && p.classList.remove("is-playing"));
+        video.muted = false;
+        video.play().catch(() => {});
+        btn.classList.add("is-playing", "is-started");
+      } else {
+        video.pause();
+        btn.classList.remove("is-playing");
+      }
+    } else if (btn.dataset.vimeo && !btn.classList.contains("is-playing")) {
+      const iframe = document.createElement("iframe");
+      iframe.src = `https://player.vimeo.com/video/${btn.dataset.vimeo}?autoplay=1&playsinline=1`;
+      iframe.allow = "autoplay; fullscreen; picture-in-picture";
+      iframe.setAttribute("allowfullscreen", "");
+      screen.appendChild(iframe);
+      btn.classList.add("is-playing", "is-started");
+    }
+  });
+
+  /* Teclado: Enter o espacio sobre el teléfono = reproducir / pausar */
+  $("gallery").addEventListener("keydown", e => {
+    if (!e.target.classList.contains("phone")) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); }
+  });
+
+  /* Barra de progreso: se mueve con el vídeo y permite saltar a cualquier punto */
+  const paintSeek = (seek, val) => {
+    seek.value = val;
+    seek.style.setProperty("--p", (val / 10) + "%");
+  };
+  $("gallery").addEventListener("timeupdate", e => {
+    const v = e.target;
+    if (v.tagName !== "VIDEO" || !v.duration) return;
+    const seek = v.parentElement.querySelector(".seek");
+    if (seek && !seek.dataset.drag) paintSeek(seek, v.currentTime / v.duration * 1000);
+  }, true);
+  $("gallery").addEventListener("input", e => {
+    if (!e.target.classList.contains("seek")) return;
+    const v = e.target.closest(".screen").querySelector("video");
+    if (v && v.duration) v.currentTime = e.target.value / 1000 * v.duration;
+    paintSeek(e.target, e.target.value);
+  });
+  $("gallery").addEventListener("pointerdown", e => {
+    if (e.target.classList.contains("seek")) e.target.dataset.drag = "1";
+  });
+  document.addEventListener("pointerup", () =>
+    document.querySelectorAll(".seek[data-drag]").forEach(s => delete s.dataset.drag));
+  document.querySelectorAll(".switch button").forEach(b =>
+    b.addEventListener("click", () => setCat(b.dataset.cat)));
+  document.querySelectorAll(".lang button").forEach(b =>
+    b.addEventListener("click", () => { lang = b.dataset.lang; renderStatic(); renderGallery(); }));
+  window.addEventListener("resize", moveIndicator);
+
+  lang = (navigator.language || "es").slice(0, 2) === "en" ? "en" : "es";
+  renderStatic();
+  setCat("main");
+
+  /* Recoloca la píldora cuando terminan de cargar las fuentes (cambian el ancho de los botones) */
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveIndicator);
+</script>
+</body>
+</html>
