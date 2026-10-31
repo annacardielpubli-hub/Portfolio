@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editora de vídeo · Video editor</title>
+<meta name="description" content="Edición de vídeos hablados a cámara para marca personal y apps.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0a12;
+    --bg-2: #15121e;
+    --line: #2b2638;
+    --text: #f3efe9;
+    --mute: rgba(255,255,255,.92);
+    --hot: #ff6a3d;
+    --display: "Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: #04071a; /* base del fondo; el canvas WebGL va por encima */
+    color: var(--text);
+    font-family: var(--body);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+  /* Fondo WebGL a pantalla completa, detrás de todo */
+  #bg-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; display: block; }
+  /* Respaldo si el navegador no tiene WebGL */
+  .no-webgl body {
+    background:
+      radial-gradient(22% 55% at 50% 100%, #b9e3ff 0%, #1f5fe0 45%, transparent 75%),
+      radial-gradient(70% 30% at 50% 100%, #ff7a3d 0%, #3b2a8f 60%, transparent 85%),
+      linear-gradient(#04071a, #0a1238) fixed;
+  }
+  /* Legibilidad del texto sobre la luz */
+  .hero h1, .hero p, .stat, .about, footer.contact, .info, .cat-desc { text-shadow: 0 1px 12px rgba(4,7,26,.6); }
+  /* Texto con degradado lima neón (sin sombra, que se vería a través del relleno) */
+  :root { --lime-1: #6dff00; --lime-2: #a6ff00; --lime-3: #d8ff00; }
+  .grad {
+    background: linear-gradient(100deg, var(--lime-1) 0%, var(--lime-2) 50%, var(--lime-3) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    /* Amplía la zona pintada para que la última letra no se corte (el espaciado negativo la saca de la caja) */
+    padding: 0 .12em .06em .02em; margin: 0 -.12em -.06em -.02em;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--hot); outline-offset: 4px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 0;
+  }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 20px; text-decoration: none; letter-spacing: -0.01em; }
+  .lang { display: flex; gap: 6px; background: rgba(255,255,255,.05); padding: 4px; border-radius: 999px; border: 1px solid var(--line); }
+  .lang button {
+    background: none; border: 0; color: var(--mute); font: inherit; font-size: 13px; font-weight: 500;
+    padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: color .25s, background .25s;
+  }
+  .lang button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+
+  /* ============================================================
+     PALETA DE LA ONDA DEL FONDO (la misma que usa el shader)
+     ============================================================ */
+  :root {
+    --navy: #0a1238;
+    --electric: #1f5fe0;
+    --cyan: #7cc4ff;
+    --cream: #fff1e6;
+    --peach: #ffb38a;
+    --orange: #ff7a3d;
+    --coral: #f0574a;
+    --serif: "Instrument Serif", "Times New Roman", serif;
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  /* ---------- 1) Hero compacto y centrado ---------- */
+  .hero { padding: 2.4vh 0 0; }
+  .hero-head {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    column-gap: clamp(48px, 6vw, 96px); max-width: 1160px; margin: 0 auto;
+  }
+  .hero-title { text-align: center; }
+  .hero h1 {
+    font-family: var(--display); font-weight: 800; color: #fff;
+    font-size: clamp(2.3rem, 4.4vw, 4.2rem); line-height: 1.02; letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 96;
+  }
+  .hero h1 .ln { display: block; opacity: 0; transform: translateY(14px); animation: rise .8s cubic-bezier(.2,.8,.2,1) forwards; }
+  .hero h1 .ln + .ln { animation-delay: .12s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  .hero p.hero-sub {
+    margin: 14px auto 0; max-width: 600px; text-align: center;
+    font-size: clamp(.95rem, .9rem + .2vw, 1.05rem); color: #fff; font-weight: 500;
+  }
+  .hand { position: relative; display: inline-block; color: #ffffff; font-style: italic; }
+  .hand svg { position: absolute; left: -6%; bottom: -.42em; width: 112%; height: .6em; overflow: visible; pointer-events: none; }
+  .hand path {
+    fill: none; stroke: url(#lime-stroke); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .9s cubic-bezier(.6,.05,.3,1) .2s;
+  }
+  .hero-sub.drawn .hand path { stroke-dashoffset: 0; }
+
+  /* ---------- 2) Cifras a los lados del título ---------- */
+  .stats { display: flex; flex-direction: column; gap: 22px; }
+  /* Las columnas se pegan al título (no a las esquinas) */
+  .stats.left  { align-items: flex-start; text-align: left;  justify-self: end; }
+  .stats.right { align-items: flex-end;   text-align: right; justify-self: start; }
+  .stat { opacity: 0; transform: translateY(12px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.8,.2,1); }
+  .stat.in { opacity: 1; transform: none; }
+  .stat .num {
+    display: block; font-family: var(--display); font-weight: 600; color: #fff;
+    font-size: clamp(1.6rem, 1.3rem + .6vw, 2rem); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  }
+  .stat .lbl {
+    display: block; margin-top: 6px; max-width: 22ch;
+    font-family: var(--body); font-size: .74rem; letter-spacing: .03em; line-height: 1.35;
+    color: #fff; opacity: .82;
+  }
+
+  /* ---------- 3) Línea de tiempo de edición ---------- */
+  .timeline { margin-top: clamp(28px, 5vh, 56px); }
+  .tl-scroll { overflow-x: auto; scrollbar-width: none; padding-top: 6px; }
+  .tl-scroll::-webkit-scrollbar { display: none; }
+  .tl-inner { position: relative; min-width: 100%; }
+
+  .ruler {
+    position: relative; height: 26px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.14);
+    background:
+      repeating-linear-gradient(to right, rgba(255,255,255,.38) 0 1px, transparent 1px 96px) bottom left / 100% 14px no-repeat,
+      repeating-linear-gradient(to right, rgba(255,255,255,.16) 0 1px, transparent 1px 12px) bottom left / 100% 6px no-repeat;
+  }
+  /* Picos de onda sobre la regla, encima del clip activo */
+  .peaks {
+    position: absolute; bottom: 1px; height: 24px; display: flex; align-items: flex-end; gap: 2px;
+    pointer-events: none; transition: left .6s cubic-bezier(.65,0,.35,1), width .6s cubic-bezier(.65,0,.35,1);
+  }
+  .peaks span { flex: 1 1 0; min-width: 1px; max-width: 2px; background: var(--cyan); opacity: .75; border-radius: 1px; transition: height .5s ease; }
+
+  .track {
+    display: flex; gap: 6px; padding: 7px; border-radius: 16px;
+    background: rgba(10,18,56,.38); border: 1px solid rgba(255,255,255,.12);
+    backdrop-filter: blur(10px) saturate(130%); -webkit-backdrop-filter: blur(10px) saturate(130%);
+  }
+  .clip {
+    --acc: var(--orange);
+    --tint: linear-gradient(110deg, rgba(255,122,61,.24), rgba(240,87,74,.10) 45%, transparent 85%);
+    --fill: linear-gradient(110deg, var(--peach) 0%, var(--orange) 55%, var(--coral) 100%);
+    --edge: var(--orange);
+    position: relative; flex: var(--n, 1) 1 0; min-width: 0; overflow: hidden;
+    text-align: left; cursor: pointer; border: 0; border-radius: 11px;
+    padding: 13px 18px 12px 20px; color: var(--text); font-family: var(--body);
+    background: var(--tint), rgba(6,10,30,.55);
+    transition: transform .22s ease, filter .22s ease, box-shadow .3s ease, color .3s ease;
+  }
+  .clip::before { /* borde izquierdo de 3px con el acento */
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--edge);
+  }
+  .clip[data-cat="apps"] {
+    --acc: var(--cyan);
+    --tint: linear-gradient(110deg, rgba(31,95,224,.26), rgba(124,196,255,.10) 45%, transparent 85%);
+    --fill: linear-gradient(110deg, var(--cyan) 0%, #5a9cf2 50%, var(--electric) 100%);
+    --edge: linear-gradient(var(--cyan), var(--electric));
+  }
+  .clip[data-cat="ads"] {
+    --acc: var(--peach);
+    --tint: linear-gradient(110deg, rgba(124,196,255,.20), rgba(255,241,230,.08) 40%, rgba(240,87,74,.14) 85%, transparent);
+    --fill: linear-gradient(110deg, var(--cyan) 0%, var(--cream) 48%, var(--peach) 72%, var(--coral) 100%);
+    --edge: linear-gradient(var(--cyan), var(--cream), var(--coral));
+  }
+  .clip .name { display: block; font-weight: 700; font-size: 1.15rem; letter-spacing: -0.01em; line-height: 1.15; white-space: nowrap; }
+  .clip .count { display: block; font-size: .82rem; margin-top: 2px; opacity: .75; }
+  .clip .mini { display: flex; align-items: flex-end; gap: 2px; height: 16px; margin-top: 10px; color: var(--acc); opacity: .5; overflow: hidden; }
+  .clip .mini span { flex: 1 1 0; min-width: 1px; max-width: 2px; background: currentColor; border-radius: 1px; }
+  .clip .mini { justify-content: space-between; }
+  .clip:hover { transform: translateY(-2px); filter: brightness(1.18); }
+  .clip:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .clip[aria-selected="true"] {
+    background: var(--fill); color: var(--navy);
+    box-shadow: 0 10px 34px -12px var(--acc), 0 0 0 1px rgba(255,255,255,.25) inset;
+  }
+  .clip[aria-selected="true"]::before { background: rgba(10,18,56,.35); }
+  .clip[aria-selected="true"] .count { opacity: .8; }
+  .clip[aria-selected="true"] .mini { color: var(--navy); opacity: .55; }
+  .clip[aria-selected="true"]:hover { filter: brightness(1.05); }
+
+  .playhead {
+    position: absolute; top: 2px; bottom: -8px; left: 0; width: 2px; z-index: 3; pointer-events: none;
+    background: #fff; border-radius: 2px; box-shadow: 0 0 10px rgba(255,255,255,.45);
+    transition: transform .6s cubic-bezier(.65,0,.35,1);
+  }
+  .playhead::before { /* marcador tipo "pin" */
+    content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+    width: 14px; height: 16px; background: #fff; border-radius: 4px 4px 2px 2px;
+    clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+  }
+
+  /* Onda grande bajo la pista, detrás de la descripción */
+  .tl-below { position: relative; min-height: 120px; margin-top: 10px; }
+  .big-wave {
+    position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px;
+    pointer-events: none; z-index: 0;
+    -webkit-mask-image: linear-gradient(to top, transparent 0, #000 40%);
+            mask-image: linear-gradient(to top, transparent 0, #000 40%);
+  }
+  .big-wave { justify-content: space-between; }
+  .big-wave span { flex: 0 0 2px; border-radius: 1px; opacity: .42; transition: height .7s cubic-bezier(.4,0,.2,1), background-color .7s ease; }
+  .hero p.cat-desc {
+    /* Panel de cristal oscuro para que el texto se lea bien sobre la onda de barras */
+    position: relative; z-index: 1; margin: 22px 0 0; padding: 18px 22px 18px 20px; max-width: 64ch;
+    font-size: 1.02rem; line-height: 1.65; font-weight: 500; color: #ffffff;
+    background: rgba(4, 7, 26, .72);
+    backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%);
+    border: 1px solid rgba(255,255,255,.10); border-left: 3px solid var(--cat-acc, var(--orange));
+    border-radius: 4px 14px 14px 4px;
+    box-shadow: 0 18px 40px -18px rgba(0,0,0,.7);
+    text-shadow: none;
+    animation: fadeUp .5s ease both;
+  }
+  .hero p.cat-desc:empty { display: none; }
+
+  .gallery {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 80px 40px; padding: 80px 0 120px; align-items: start;
+  }
+  .item:nth-child(3n+2 of .item:not(.featured)) { margin-top: 90px; }
+  .item:nth-child(3n of .item:not(.featured)) { margin-top: 40px; }
+  .item { animation: fadeUp .6s ease both; animation-delay: calc(var(--k, 0) * 70ms); }
+
+  /* Categoría con destacado: el resto va en 2 columnas (2 + 2) */
+  .gallery.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 820px; margin: 0 auto; }
+  .gallery.two-col .item:nth-child(n) { margin-top: 0; }
+  .gallery.two-col .item:nth-child(2n of .item:not(.featured)) { margin-top: 90px; }
+
+  /* Proyecto destacado: ocupa toda la fila, con el teléfono a un lado y el texto al otro */
+  .item.featured {
+    grid-column: 1 / -1; display: grid; grid-template-columns: minmax(240px, 300px) 1fr;
+    gap: 56px; align-items: center; max-width: 900px;
+  }
+  .item.featured .phone { margin: 0; }
+  .item.featured .info { margin-top: 0; text-align: left; }
+  .item.featured .info h3 { font-size: clamp(30px, 4vw, 44px); line-height: 1; letter-spacing: -0.03em; }
+  .item.featured .info .result { color: #fff; font-size: 17px; line-height: 1.65; margin-top: 18px; max-width: 48ch; }
+  .item.featured .tags { justify-content: flex-start; margin-top: 20px; }
+  .item.featured .kicker {
+    display: inline-block; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--hot); margin-bottom: 14px;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } }
+
+  .phone {
+    display: block; position: relative; width: 100%; max-width: 280px; margin: 0 auto;
+    padding: 9px; border-radius: 36px; cursor: pointer; border: 0;
+    background: linear-gradient(160deg, #3a3550, #17141f 45%, #2a2638);
+    box-shadow: 0 0 0 1px #4a4460 inset, 0 40px 80px -30px rgba(0,0,0,.8);
+    transform: rotate(var(--tilt, 0deg));
+    transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s;
+  }
+  .phone:hover, .phone:focus-visible { transform: rotate(0) translateY(-8px); }
+  .phone.is-playing { box-shadow: 0 0 0 1px #4a4460 inset, 0 40px 90px -20px rgba(255,106,61,.35); }
+  .screen {
+    /* Pantalla 9:16, igual que los vídeos de 720×1280 */
+    position: relative; width: 100%; aspect-ratio: 720 / 1280; border-radius: 28px;
+    overflow: hidden; background: #000;
+  }
+  .screen::before {
+    content: ""; position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 70px; height: 20px; border-radius: 20px; background: #000; z-index: 3;
+    transition: opacity .3s;
+  }
+  /* La "isla" se oculta al reproducir para no tapar el vídeo */
+  .phone.is-playing .screen::before { opacity: 0; }
+  .screen > video, .screen > iframe, .screen > .poster {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border: 0;
+  }
+  .poster { background: linear-gradient(160deg, var(--c1, #ff6a3d), var(--c2, #7b6cff)); }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .play {
+    position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 68px; height: 68px; border-radius: 50%; background: rgba(12,10,18,.55);
+    backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.35);
+    transition: opacity .3s, transform .3s;
+  }
+  .play::after {
+    content: ""; position: absolute; top: 50%; left: 54%; transform: translate(-50%, -50%);
+    border-style: solid; border-width: 11px 0 11px 18px; border-color: transparent transparent transparent var(--text);
+  }
+  .phone:hover .play { transform: translate(-50%, -50%) scale(1.08); }
+  .phone.is-playing .play { opacity: 0; pointer-events: none; }
+  .phone.is-started .poster { display: none; }
+
+  /* Barra para avanzar / retroceder */
+  .screen::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; z-index: 3;
+    background: linear-gradient(transparent, rgba(0,0,0,.55)); pointer-events: none;
+    opacity: 0; transition: opacity .3s;
+  }
+  .phone.is-started .screen::after { opacity: 1; }
+  .seek {
+    position: absolute; z-index: 4; left: 16px; right: 16px; bottom: 14px; width: calc(100% - 32px);
+    -webkit-appearance: none; appearance: none; height: 24px; margin: 0;
+    background: transparent; cursor: pointer; touch-action: none;
+    opacity: 0; pointer-events: none; transition: opacity .3s;
+  }
+  .phone.is-started .seek { opacity: 1; pointer-events: auto; }
+  .seek::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 4px;
+    background: linear-gradient(to right, var(--hot) var(--p, 0%), rgba(255,255,255,.35) var(--p, 0%));
+  }
+  .seek::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.5);
+  }
+  .seek::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255,255,255,.35); }
+  .seek::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--hot); }
+  .seek::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
+  .seek:focus-visible { outline-offset: 2px; }
+
+  .info { margin-top: 26px; text-align: center; }
+  .info h3 { font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: -0.01em; line-height: 1.05; text-wrap: balance; }
+  .info .meta { color: var(--mute); font-size: 14px; margin-top: 6px; }
+  .info .result { font-size: 15px; margin-top: 10px; color: #fff; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+  .tags span { font-size: 12px; color: var(--text); background: rgba(255,255,255,.06); padding: 4px 10px; border-radius: 999px; }
+
+  .about {
+    display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: clamp(40px, 6vw, 88px);
+    align-items: center; padding: 110px 0; border-top: 1px solid var(--line);
+  }
+  /* Foto con borde fino en degradado y halo azul/coral detrás */
+  .photo { position: relative; border-radius: 24px; padding: 2px;
+    background: linear-gradient(140deg, var(--cyan), var(--cream) 45%, var(--coral)); }
+  .photo::before {
+    content: ""; position: absolute; inset: 8% -6% -6% -6%; z-index: -1; border-radius: 40px; filter: blur(48px); opacity: .55;
+    background: radial-gradient(60% 60% at 25% 30%, var(--electric), transparent 70%), radial-gradient(60% 60% at 80% 80%, var(--coral), transparent 70%);
+  }
+  .photo img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; object-position: center 25%; border-radius: 22px; background: var(--navy); }
+  .about h2 { font-family: var(--display); font-weight: 800; font-size: clamp(36px, 5vw, 56px); line-height: 1; letter-spacing: -0.03em; margin-bottom: 24px; }
+  .about p { color: #fff; margin-bottom: 16px; max-width: 54ch; font-size: clamp(1.05rem, 1rem + .2vw, 1.15rem); line-height: 1.6; }
+  .about p .hi { font-family: var(--display); font-weight: 700; font-size: 1.22em; letter-spacing: -0.01em; }
+  .about p strong { font-weight: 700; }
+  .skills { margin-top: 34px; }
+  .skills h3 { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; margin-bottom: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; }
+  .chips li {
+    --c: var(--electric);
+    font-size: .92rem; font-weight: 500; color: #fff; padding: 7px 14px; border-radius: 999px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--c) 22%, transparent), rgba(10,18,56,.45));
+    border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    transition: box-shadow .25s ease, filter .25s ease, transform .25s ease;
+  }
+  .chips li:nth-child(4n+2) { --c: var(--cyan); }
+  .chips li:nth-child(4n+3) { --c: var(--peach); }
+  .chips li:nth-child(4n+4) { --c: var(--coral); }
+  .chips li:hover { filter: brightness(1.25); box-shadow: 0 0 22px -6px var(--c); transform: translateY(-1px); }
+
+  footer.contact { padding: 120px 0 60px; text-align: center; }
+  footer.contact h2 { font-family: var(--display); font-weight: 800; font-size: clamp(44px, 8vw, 104px); line-height: .95; letter-spacing: -0.04em; text-wrap: balance; }
+  footer.contact a.mail {
+    display: inline-block; margin-top: 36px; font-family: var(--display); font-size: 22px;
+    padding: 16px 30px; border-radius: 999px; background: var(--text); color: var(--bg); text-decoration: none;
+    max-width: 100%; overflow-wrap: anywhere;
+    transition: transform .3s;
+  }
+  footer.contact a.mail:hover { transform: scale(1.04); }
+  footer.contact a.mail { text-shadow: none; }
+  footer.contact .small { margin-top: 80px; color: var(--mute); font-size: 13px; }
+
+  @media (max-width: 820px) {
+    .about { grid-template-columns: 1fr; gap: 40px; padding: 70px 0; }
+    .photo { max-width: 380px; width: 100%; margin: 0 auto; }
+    .item:nth-child(n) { margin-top: 0; }
+    .gallery.two-col .item:nth-child(n) { margin-top: 0; }
+    .item.featured { grid-template-columns: 1fr; gap: 26px; }
+    .item.featured .phone { margin: 0 auto; }
+    .item.featured .info { text-align: center; }
+    .item.featured .info .result { margin-left: auto; margin-right: auto; }
+    .item.featured .tags { justify-content: center; }
+    .gallery { gap: 60px 24px; }
+  }
+  @media (max-width: 480px) {
+    .wrap { padding: 0 16px; }
+    footer.contact a.mail { font-size: 17px; padding: 14px 22px; }
+  }
+  @media (max-width: 600px) {
+    .gallery.two-col { grid-template-columns: 1fr; }
+  }
+  /* Móvil: cifras en 2x2 bajo el subtítulo; la pista de clips hace scroll horizontal con snap */
+  @media (max-width: 767px) {
+    .hero { padding-top: 12px; }
+    .hero-head { grid-template-columns: 1fr 1fr; gap: 20px 16px; }
+    .hero-title { grid-column: 1 / -1; order: -1; }
+    .stats { display: contents; }
+    .stat { text-align: center; justify-self: center; }
+    .stat .lbl { margin-left: auto; margin-right: auto; }
+    .tl-scroll { scroll-snap-type: x mandatory; margin: 0 -16px; padding: 6px 16px 0; scroll-padding: 0 16px; }
+    .tl-inner { min-width: 520px; }
+    .clip { scroll-snap-align: start; flex-basis: 150px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation: none !important; transition: none !important; }
+    .hero h1 .ln { opacity: 1; transform: none; }
+    .stat { opacity: 1; transform: none; }
+    .hand path { stroke-dashoffset: 0; }
+  }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas" aria-hidden="true"></canvas>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="lime-stroke" x1="0" x2="1"><stop offset="0" stop-color="#6dff00"/><stop offset=".5" stop-color="#a6ff00"/><stop offset="1" stop-color="#d8ff00"/></linearGradient></defs>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#inicio">Anna Cardiel</a>
+    <div class="lang" role="group" aria-label="Idioma / Language">
+      <button type="button" data-lang="es" aria-pressed="true">ES</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </header>
+
+  <section class="hero" id="inicio">
+    <div class="hero-head">
+      <div class="stats left">
+        <div class="stat"><span class="num" data-to="5" data-pre="+">+5</span><span class="lbl"></span></div>
+        <div class="stat"><span class="num" data-to="20" data-suf="+">20+</span><span class="lbl"></span></div>
+      </div>
+      <div class="hero-title">
+        <h1 id="heroTitle"></h1>
+        <p class="hero-sub" id="heroSub"></p>
+      </div>
+      <div class="stats right">
+        <div class="stat"><span class="num" data-to="5.8" data-dec="1" data-suf="M">5.8M</span><span class="lbl"></span></div>
+        <div class="stat"><span class="num" data-to="48" data-suf="h">48h</span><span class="lbl"></span></div>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-scroll" id="tlScroll">
+        <div class="tl-inner">
+          <div class="ruler" aria-hidden="true"><div class="peaks" id="peaks"></div></div>
+          <div class="track" id="track" role="tablist" aria-label="Categorías / Categories">
+            <button class="clip" role="tab" data-cat="main" aria-selected="true"><span class="name"></span><span class="count"></span><span class="mini" aria-hidden="true"></span></button>
+            <button class="clip" role="tab" data-cat="apps" aria-selected="false" tabindex="-1"><span class="name"></span><span class="count"></span><span class="mini" aria-hidden="true"></span></button>
+            <button class="clip" role="tab" data-cat="ads" aria-selected="false" tabindex="-1"><span class="name"></span><span class="count"></span><span class="mini" aria-hidden="true"></span></button>
+          </div>
+          <span class="playhead" id="playhead" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="tl-below">
+        <div class="big-wave" id="bigWave" aria-hidden="true"></div>
+        <p class="cat-desc" id="catDesc" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery" id="gallery" aria-live="polite"></section>
+
+  <section class="about" id="sobre">
+    <div>
+      <div class="photo"><img src="anna.jpg" id="aboutPhoto" alt="" loading="lazy" width="800" height="1000"></div>
+    </div>
+    <div>
+      <h2 id="aboutTitle"></h2>
+      <p id="aboutP1"></p>
+      <p id="aboutP2"></p>
+      <div class="skills">
+        <h3 id="servTitle"></h3>
+        <ul class="chips" id="servList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="contact" id="contacto">
+    <h2 id="contactTitle"></h2>
+    <a class="mail" href="mailto:annacardielpubli@gmail.com">annacardielpubli@gmail.com</a>
+    <p class="small">© <span id="year"></span> Anna Cardiel</p>
+  </footer>
+</div>
+
+<script>
+  /* ============================================================
+     PROYECTOS: edita esta lista. Cada proyecto necesita:
+     - cat: "main" | "apps" | "ads"
+     - src: ruta al .mp4 dentro de videos/      (o null)
+     - vimeo: ID de Vimeo si lo alojas allí     (o null)
+     - poster: ruta a la imagen de portada en posters/
+     - c1 / c2: colores de respaldo mientras carga la portada
+     ============================================================ */
+  const PROJECTS = [
+    {
+      /* featured: true = proyecto destacado a toda la fila (solo uno por categoría) */
+      cat: "main", featured: true, src: "videos/anna-voluntariado.mp4", vimeo: null, poster: "posters/anna-voluntariado.jpg",
+      c1: "#c9503a", c2: "#2b2638",
+      es: { k: "Mi presentación", t: "Voluntariado en El Salvador", m: "Vlog · Responsable de marketing de un centro cultural",
+            r: "No es, ni de lejos, uno de mis mejores trabajos, pero marca mis inicios en la edición. Lo grabé durante mi voluntariado en El Salvador, una de las experiencias que más me han marcado como persona. Forma parte de mi historia personal y profesional, y es la mejor forma de que me conozcas un poco antes de trabajar juntos.",
+            tags: ["Formato vlog", "Mis inicios"] },
+      en: { k: "Meet me", t: "Volunteering in El Salvador", m: "Vlog · Marketing lead at a cultural centre",
+            r: "It is nowhere near my best work, but it marks my beginnings as an editor. I filmed it while volunteering in El Salvador, one of the experiences that has shaped me most as a person. It is part of my personal and professional story, and the best way for you to get to know me before we work together.",
+            tags: ["Vlog format", "Where it started"] }
+    },
+    {
+      cat: "main", src: "videos/marrua-gb.mp4", vimeo: null, poster: "posters/marrua-gb.jpg",
+      c1: "#2f5fb3", c2: "#2b2638",
+      es: { t: "Comida de campeones", m: "Contenido orgánico", r: "", tags: ["Formato sketch", "Edición avanzada"] },
+      en: { t: "Champions' meal", m: "Organic content", r: "", tags: ["Sketch format", "Advanced editing"] }
+    },
+    {
+      cat: "main", src: "videos/resultado-keixa.mp4", vimeo: null, poster: "posters/resultado-keixa.jpg",
+      c1: "#b08a63", c2: "#2b2638",
+      es: { t: "Antes y después", m: "Contenido orgánico", r: "", tags: ["Formato resultado", "Edición sencilla"] },
+      en: { t: "Before and after", m: "Organic content", r: "", tags: ["Result format", "Simple editing"] }
+    },
+    {
+      cat: "main", src: "videos/velada-evento.mp4", vimeo: null, poster: "posters/velada-evento.jpg",
+      c1: "#f2c230", c2: "#2b2638",
+      es: { t: "Velada de boxeo", m: "Contenido orgánico", r: "", tags: ["Patrocinio de evento", "Edición sencilla"] },
+      en: { t: "Boxing night", m: "Organic content", r: "", tags: ["Event promo", "Simple editing"] }
+    },
+    {
+      cat: "main", src: "videos/formacion-keixa.mp4", vimeo: null, poster: "posters/formacion-keixa.jpg",
+      c1: "#c8a96a", c2: "#2b2638",
+      es: { t: "Un día conmigo", m: "Contenido orgánico", r: "", tags: ["Formato vlog", "Edición sencilla"] },
+      en: { t: "A day with me", m: "Organic content", r: "", tags: ["Vlog format", "Simple editing"] }
+    },
+    {
+      cat: "apps", src: "videos/gertugo-ranking.mp4", vimeo: null, poster: "posters/gertugo-ranking.jpg",
+      c1: "#ff6a3d", c2: "#7b6cff",
+      es: { t: "Top 5 cosas", m: "Contenido orgánico", r: "", tags: ["Formato ranking", "Edición avanzada"] },
+      en: { t: "Top 5 things", m: "Organic content", r: "", tags: ["Ranking format", "Advanced editing"] }
+    },
+    {
+      cat: "apps", src: "videos/gertugo-enumeracion.mp4", vimeo: null, poster: "posters/gertugo-enumeracion.jpg",
+      c1: "#3dd6c5", c2: "#2b2638",
+      es: { t: "¿Qué puedes alquilar?", m: "Contenido orgánico", r: "", tags: ["Formato enumeración", "Edición avanzada"] },
+      en: { t: "What can you rent?", m: "Organic content", r: "", tags: ["Listing format", "Advanced editing"] }
+    },
+    {
+      cat: "apps", src: "videos/gertugo-entrevista.mp4", vimeo: null, poster: "posters/gertugo-entrevista.jpg",
+      c1: "#ffb347", c2: "#ff3d7f",
+      es: { t: "Entrevista callejera", m: "Contenido orgánico", r: "", tags: ["Entrevista callejera", "Color grading", "Edición simple"] },
+      en: { t: "Street interview", m: "Organic content", r: "", tags: ["Street interview", "Color grading", "Simple editing"] }
+    },
+    {
+      cat: "ads", src: "videos/yousra-embarazo.mp4", vimeo: null, poster: "posters/yousra-embarazo.jpg",
+      c1: "#c98a9a", c2: "#2b2638",
+      es: { t: "Fisioterapia en el embarazo", m: "Meta Ads", r: "", tags: ["B2C", "Edición avanzada"] },
+      en: { t: "Physiotherapy in pregnancy", m: "Meta Ads", r: "", tags: ["B2C", "Advanced editing"] }
+    },
+    {
+      cat: "ads", src: "videos/calendario-velas.mp4", vimeo: null, poster: "posters/calendario-velas.jpg",
+      c1: "#b3262e", c2: "#2b2638",
+      es: { t: "Un calendario de Adviento diferente", m: "Meta Ads", r: "", tags: ["B2C", "Edición avanzada"] },
+      en: { t: "A different kind of Advent calendar", m: "Meta Ads", r: "", tags: ["B2C", "Advanced editing"] }
+    },
+    {
+      cat: "ads", src: "videos/pigut-vipday.mp4", vimeo: null, poster: "posters/pigut-vipday.jpg",
+      c1: "#d8c7a8", c2: "#2b2638",
+      es: { t: "Formación VIP Day", m: "Meta Ads", r: "", tags: ["B2B", "Edición avanzada"] },
+      en: { t: "VIP Day training", m: "Meta Ads", r: "", tags: ["B2B", "Advanced editing"] }
+    }
+  ];
+
+  /* ============================================================
+     TEXTOS DE LA PÁGINA (ES / EN)
+     heroTitle: titular (cada elemento es una línea; <em> = cursiva)
+     heroSub:   subtítulo bajo el titular
+     stats:     etiquetas de las cifras (izq. arriba, izq. abajo, dcha. arriba, dcha. abajo)
+     ============================================================ */
+  const T = {
+    es: {
+      heroTitle: ["Tu visión.", "Mi <span class='grad'>edición</span>."],
+      heroSub: "Una historia que merece ser <span class='hand'>contada<svg viewBox='0 0 100 14' preserveAspectRatio='none' aria-hidden='true'><path pathLength='1' d='M3 8.5 C 14 5.5, 23 9.8, 35 7.2 S 57 4.6, 68 7.6 S 88 9.4, 97 5.6'/></svg></span>.",
+      stats: ["años de experiencia", "clientes de diferentes sectores", "visualizaciones generadas", "de entrega media"],
+      count: n => n === 1 ? "1 vídeo" : n + " vídeos",
+      catMain: "Orgánico", catApps: "Apps", catAds: "Meta Ads",
+      catDesc: {
+        ads: "Vídeos con edición estratégica orientada a la conversión. Ganchos visuales y textuales que captan la atención desde los primeros segundos, ritmos dinámicos y una estructura pensada para convertir clientes potenciales en clientes asegurados."
+      },
+      aboutTitle: "Sobre mí",
+      aboutP1: "<span class='hi grad'>¡Hola! Soy Anna</span>, especializada en edición de vídeos para diferentes formatos y audiencias, con +5 años de experiencia ayudando a dar personalidad y ritmo a las identidades visuales de clientes de diversos sectores.",
+      aboutP2: "<strong class='grad'>¿Buscas un estilo distinto a lo que has visto en mi portfolio?</strong> Soy 4x4: pásame una referencia de lo que buscas y lo hacemos realidad.",
+      photoAlt: "Retrato de Anna Cardiel sonriendo, sentada en un muro junto al mar",
+      servTitle: "Skills",
+      servs: ["Edición avanzada", "Textos dinámicos", "Animaciones en 3D", "Transiciones avanzadas", "Color grading", "Ganchos visuales", "Ganchos textuales", "Integración de B-roll"],
+      contactTitle: "¿Hablamos de tu <span class='grad'>próximo vídeo</span>?",
+      play: "Reproducir", seek: "Avanzar o retroceder el vídeo", title: "Editora de vídeo · Video editor"
+    },
+    en: {
+      heroTitle: ["Your vision.", "My <span class='grad'>edit</span>."],
+      heroSub: "A story worth <span class='hand'>telling<svg viewBox='0 0 100 14' preserveAspectRatio='none' aria-hidden='true'><path pathLength='1' d='M3 8.5 C 14 5.5, 23 9.8, 35 7.2 S 57 4.6, 68 7.6 S 88 9.4, 97 5.6'/></svg></span>.",
+      stats: ["years of experience", "clients across industries", "views generated", "average turnaround"],
+      count: n => n === 1 ? "1 video" : n + " videos",
+      catMain: "Organic", catApps: "Apps", catAds: "Meta Ads",
+      catDesc: {
+        ads: "Videos with strategic, conversion-focused editing. Visual and text hooks that grab attention from the very first seconds, dynamic pacing and a structure designed to turn leads into real customers."
+      },
+      aboutTitle: "About me",
+      aboutP1: "<span class='hi grad'>Hi! I'm Anna</span>, a video editor specialised in different formats and audiences, with +5 years of experience helping give personality and rhythm to the visual identities of clients across many industries.",
+      aboutP2: "<strong class='grad'>Looking for a style different from what you've seen in my portfolio?</strong> I'm an all-rounder: send me a reference of what you're after and we'll make it happen.",
+      photoAlt: "Portrait of Anna Cardiel smiling, sitting on a wall by the sea",
+      servTitle: "Skills",
+      servs: ["Advanced editing", "Dynamic text", "3D animation", "Advanced transitions", "Color grading", "Visual hooks", "Text hooks", "B-roll integration"],
+      contactTitle: "Shall we talk about your <span class='grad'>next video</span>?",
+      play: "Play", seek: "Seek through the video", title: "Video editor · Editora de vídeo"
+    }
+  };
+
+  let lang = "es";
+  let cat = "main";
+  const $ = id => document.getElementById(id);
+
+  function renderStatic() {
+    const t = T[lang];
+    $("heroTitle").innerHTML = t.heroTitle.map(l => `<span class="ln">${l}</span>`).join("");
+    $("heroSub").innerHTML = t.heroSub;
+    renderStats();
+    document.querySelectorAll(".clip").forEach(b => {
+      const n = PROJECTS.filter(p => p.cat === b.dataset.cat).length;
+      b.querySelector(".name").textContent = { main: t.catMain, apps: t.catApps, ads: t.catAds }[b.dataset.cat];
+      b.querySelector(".count").textContent = t.count(n);
+      b.style.setProperty("--n", Math.max(n, 1));
+    });
+    renderCatDesc();
+    $("aboutTitle").textContent = t.aboutTitle;
+    $("aboutP1").innerHTML = t.aboutP1;
+    $("aboutP2").innerHTML = t.aboutP2;
+    $("aboutPhoto").alt = t.photoAlt;
+    $("servTitle").textContent = t.servTitle;
+    $("servList").innerHTML = t.servs.map(s => `<li>${s}</li>`).join("");
+    $("contactTitle").innerHTML = t.contactTitle;
+    $("year").textContent = new Date().getFullYear();
+    document.documentElement.lang = lang;
+    document.title = t.title;
+    document.querySelectorAll(".lang button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    positionPlayhead();
+  }
+
+  function card(p, k) {
+    const x = p[lang];
+    const video = p.src ? `<video preload="none" muted playsinline loop poster="${p.poster}" src="${p.src}"></video>` : "";
+    const style = `--c1:${p.c1};--c2:${p.c2};--tilt:${k % 2 ? 2 : -2}deg`;
+    return `
+      <article class="item${p.featured ? " featured" : ""}" style="--k:${k}">
+        <div class="phone" role="button" tabindex="0" style="${style}" aria-label="${x.t}: ${T[lang].play}"
+                data-vimeo="${p.vimeo || ""}">
+          <div class="screen">
+            ${video}
+            <div class="poster"><img src="${p.poster}" alt="" loading="lazy" onerror="this.remove()"></div>
+            <span class="play" aria-hidden="true"></span>
+            ${p.src ? `<input type="range" class="seek" min="0" max="1000" step="1" value="0" aria-label="${T[lang].seek}">` : ""}
+          </div>
+        </div>
+        <div class="info">
+          ${x.k ? `<span class="kicker">${x.k}</span>` : ""}
+          <h3>${x.t}</h3>
+          <p class="meta">${x.m}</p>
+          ${x.r ? `<p class="result">${x.r}</p>` : ""}
+          <div class="tags">${x.tags.map(t => `<span>${t}</span>`).join("")}</div>
+        </div>
+      </article>`;
+  }
+
+  function renderGallery() {
+    const list = PROJECTS.filter(p => p.cat === cat);
+    $("gallery").classList.toggle("two-col", list.some(p => p.featured));
+    $("gallery").innerHTML = list.map(card).join("");
+  }
+
+  /* ============================================================
+     LÍNEA DE TIEMPO: clips, ondas y cabezal
+     ============================================================ */
+  // Generador pseudoaleatorio con semilla: la misma categoría da siempre la misma onda
+  function seeded(seed) {
+    let s = 0;
+    for (const ch of String(seed)) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
+    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  }
+  // Perfil de onda: suma de "montañas" + ruido fino, valores 0–1
+  function waveProfile(seed, n, bumps) {
+    const r = seeded(seed), peaks = [];
+    for (let i = 0; i < bumps; i++) peaks.push([r(), .05 + r() * .12, .35 + r() * .65]);
+    return Array.from({ length: n }, (_, i) => {
+      const x = i / (n - 1);
+      let v = .08;
+      peaks.forEach(([c, w, a]) => { v += a * Math.exp(-Math.pow((x - c) / w, 2)); });
+      return Math.min(1, v * (.82 + r() * .3));
+    });
+  }
+  // Colores de la onda grande, interpolados a lo largo del ancho según la categoría
+  const WAVE_STOPS = {
+    main: ["#ffb38a", "#ff7a3d", "#f0574a"],
+    apps: ["#7cc4ff", "#1f5fe0"],
+    ads:  ["#7cc4ff", "#fff1e6", "#ffb38a", "#f0574a"]
+  };
+  const CAT_ACC = { main: "#ff7a3d", apps: "#7cc4ff", ads: "#ffb38a" };
+  function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function lerpStops(stops, t) {
+    const seg = (stops.length - 1) * t, i = Math.min(stops.length - 2, Math.floor(seg)), f = seg - i;
+    const a = hexToRgb(stops[i]), b = hexToRgb(stops[i + 1]);
+    return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`;
+  }
+
+  const BIG_BARS = Math.max(90, Math.min(320, Math.floor(innerWidth / 4.2))), PEAK_BARS = 34;
+
+  function buildTimeline() {
+    // Mini ondas de cada clip (estáticas)
+    document.querySelectorAll(".clip").forEach(clip => {
+      const mini = clip.querySelector(".mini");
+      if (mini.childElementCount) return;
+      waveProfile("mini-" + clip.dataset.cat, 160, 7).forEach(v => {
+        const s = document.createElement("span");
+        s.style.height = Math.max(3, Math.round(v * 16)) + "px";
+        mini.appendChild(s);
+      });
+    });
+    // Barras de la onda grande y de los picos de la regla (se reutilizan; solo cambian altura y color)
+    const big = $("bigWave"), peaks = $("peaks");
+    for (let i = 0; i < BIG_BARS; i++) big.appendChild(document.createElement("span"));
+    for (let i = 0; i < PEAK_BARS; i++) peaks.appendChild(document.createElement("span"));
+  }
+
+  function updateTimeline(first) {
+    const clips = [...document.querySelectorAll(".clip")];
+    clips.forEach(c => {
+      const on = c.dataset.cat === cat;
+      c.setAttribute("aria-selected", String(on));
+      c.tabIndex = on ? 0 : -1;
+    });
+    document.querySelector(".hero").style.setProperty("--cat-acc", CAT_ACC[cat]);
+
+    // Onda grande: nueva forma y colores con transición
+    const prof = waveProfile("big-" + cat, BIG_BARS, 5), stops = WAVE_STOPS[cat];
+    [...$("bigWave").children].forEach((s, i) => {
+      s.style.height = (prof[i] * 100).toFixed(1) + "%";
+      s.style.backgroundColor = lerpStops(stops, i / (BIG_BARS - 1));
+    });
+    // Picos sobre la regla
+    const pk = waveProfile("peak-" + cat, PEAK_BARS, 3);
+    [...$("peaks").children].forEach((s, i) => { s.style.height = Math.max(2, Math.round(pk[i] * 22)) + "px"; });
+
+    positionPlayhead();
+    // En móvil, desplaza la pista para que el clip activo quede a la vista
+    const active = clips.find(c => c.dataset.cat === cat);
+    if (!first && active && $("tlScroll").scrollWidth > $("tlScroll").clientWidth)
+      active.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }
+
+  function positionPlayhead() {
+    const active = document.querySelector(`.clip[data-cat="${cat}"]`);
+    if (!active) return;
+    const track = $("track");
+    const x = track.offsetLeft + active.offsetLeft;
+    $("playhead").style.transform = `translateX(${x - 1}px)`;
+    const peaks = $("peaks");
+    peaks.style.left = (x + active.offsetWidth * .3) + "px";
+    peaks.style.width = Math.min(220, active.offsetWidth * .4) + "px";
+  }
+
+  /* ============================================================
+     CIFRAS: conteo al cargar
+     ============================================================ */
+  let statsCounted = false;
+  function renderStats() {
+    const t = T[lang];
+    document.querySelectorAll(".stat").forEach((el, i) => {
+      el.querySelector(".lbl").textContent = t.stats[i];
+    });
+    if (statsCounted) return;
+    statsCounted = true;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const easeOutCubic = p => 1 - Math.pow(1 - p, 3);
+    // Orden: izq. arriba, izq. abajo, dcha. arriba, dcha. abajo — 150 ms entre cada una
+    document.querySelectorAll(".stat").forEach((stat, i) => {
+      const num = stat.querySelector(".num");
+      const to = parseFloat(num.dataset.to), dec = +num.dataset.dec || 0;
+      const pre = num.dataset.pre || "", suf = num.dataset.suf || "";
+      const fmt = v => pre + v.toFixed(dec) + suf;
+      if (still) { num.textContent = fmt(to); stat.classList.add("in"); return; }
+      num.textContent = fmt(0);
+      setTimeout(() => {
+        stat.classList.add("in");
+        const t0 = performance.now(), dur = 1400;
+        (function step(now) {
+          const p = Math.min(1, (now - t0) / dur);
+          num.textContent = fmt(to * easeOutCubic(p));
+          if (p < 1) requestAnimationFrame(step);
+        })(t0);
+      }, 250 + i * 150);
+    });
+  }
+
+  /* Descripción opcional bajo el selector (solo si la categoría la tiene) */
+  function renderCatDesc() {
+    const el = $("catDesc");
+    el.textContent = T[lang].catDesc[cat] || "";
+    el.style.animation = "none"; el.offsetHeight; el.style.animation = "";
+  }
+
+  function setCat(c, first) {
+    cat = c;
+    renderCatDesc();
+    updateTimeline(first);
+    renderGallery();
+  }
+
+  /* Un clic reproduce con sonido y pausa el resto; otro clic lo pausa */
+  $("gallery").addEventListener("click", e => {
+    if (e.target.closest(".seek")) return; // la barra no pausa ni reproduce
+    const btn = e.target.closest(".phone");
+    if (!btn) return;
+    const screen = btn.querySelector(".screen");
+    const video = screen.querySelector("video");
+
+    if (video) {
+      if (video.paused) {
+        document.querySelectorAll("video").forEach(v => v !== video && v.pause());
+        document.querySelectorAll(".phone.is-playing").forEach(p => p !== btn && p.classList.remove("is-playing"));
+        video.muted = false;
+        video.play().catch(() => {});
+        btn.classList.add("is-playing", "is-started");
+      } else {
+        video.pause();
+        btn.classList.remove("is-playing");
+      }
+    } else if (btn.dataset.vimeo && !btn.classList.contains("is-playing")) {
+      const iframe = document.createElement("iframe");
+      iframe.src = `https://player.vimeo.com/video/${btn.dataset.vimeo}?autoplay=1&playsinline=1`;
+      iframe.allow = "autoplay; fullscreen; picture-in-picture";
+      iframe.setAttribute("allowfullscreen", "");
+      screen.appendChild(iframe);
+      btn.classList.add("is-playing", "is-started");
+    }
+  });
+
+  /* Teclado: Enter o espacio sobre el teléfono = reproducir / pausar */
+  $("gallery").addEventListener("keydown", e => {
+    if (!e.target.classList.contains("phone")) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); }
+  });
+
+  /* Barra de progreso: se mueve con el vídeo y permite saltar a cualquier punto */
+  const paintSeek = (seek, val) => {
+    seek.value = val;
+    seek.style.setProperty("--p", (val / 10) + "%");
+  };
+  $("gallery").addEventListener("timeupdate", e => {
+    const v = e.target;
+    if (v.tagName !== "VIDEO" || !v.duration) return;
+    const seek = v.parentElement.querySelector(".seek");
+    if (seek && !seek.dataset.drag) paintSeek(seek, v.currentTime / v.duration * 1000);
+  }, true);
+  $("gallery").addEventListener("input", e => {
+    if (!e.target.classList.contains("seek")) return;
+    const v = e.target.closest(".screen").querySelector("video");
+    if (v && v.duration) v.currentTime = e.target.value / 1000 * v.duration;
+    paintSeek(e.target, e.target.value);
+  });
+  $("gallery").addEventListener("pointerdown", e => {
+    if (e.target.classList.contains("seek")) e.target.dataset.drag = "1";
+  });
+  document.addEventListener("pointerup", () =>
+    document.querySelectorAll(".seek[data-drag]").forEach(s => delete s.dataset.drag));
+  document.querySelectorAll(".clip").forEach(b =>
+    b.addEventListener("click", () => setCat(b.dataset.cat)));
+  /* Teclado: flechas, Inicio y Fin para moverse entre clips */
+  $("track").addEventListener("keydown", e => {
+    const clips = [...document.querySelectorAll(".clip")];
+    const i = clips.findIndex(c => c.dataset.cat === cat);
+    let j = null;
+    if (e.key === "ArrowRight") j = (i + 1) % clips.length;
+    else if (e.key === "ArrowLeft") j = (i - 1 + clips.length) % clips.length;
+    else if (e.key === "Home") j = 0;
+    else if (e.key === "End") j = clips.length - 1;
+    if (j === null) return;
+    e.preventDefault(); clips[j].focus(); setCat(clips[j].dataset.cat);
+  });
+  document.querySelectorAll(".lang button").forEach(b =>
+    b.addEventListener("click", () => { lang = b.dataset.lang; renderStatic(); renderGallery(); }));
+  window.addEventListener("resize", positionPlayhead);
+
+  lang = (navigator.language || "es").slice(0, 2) === "en" ? "en" : "es";
+  buildTimeline();
+  renderStatic();
+  setCat("main", true);
+
+  /* Dibuja el subrayado a mano de "contada" al entrar en pantalla */
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(entries => entries.forEach(en => {
+      if (en.isIntersecting) { en.target.classList.add("drawn"); io.unobserve(en.target); }
+    }), { threshold: .6 });
+    io.observe($("heroSub"));
+  } else $("heroSub").classList.add("drawn");
+
+  /* Recoloca el cabezal cuando terminan de cargar las fuentes (cambian el ancho de los clips) */
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(positionPlayhead);
+</script>
+<script>
+  /* ============================================================
+     FONDO WEBGL — campana de luz estriada que sigue al cursor
+     Ajusta estos valores para cambiar el aspecto del fondo.
+     ============================================================ */
+  const BG = {
+    BELL_WIDTH:   0.20,   // ancho de la campana (fracción del ancho de pantalla). En móvil se ensancha solo.
+    BELL_HEIGHT:  0.64,   // altura del pico (fracción del alto de pantalla)
+    BELL_RANGE:   0.14,   // cuánto sube/baja el pico según la posición Y del cursor
+    LOBE_HEIGHT:  0.10,   // altura del lóbulo pequeño que "empuja" el cursor
+    LOBE_WIDTH:   0.055,  // ancho de ese lóbulo
+    STRIPE_PX:    3.0,    // separación entre estrías verticales, en píxeles (≈ nº de estrías = ancho / este valor)
+    BAND_HEIGHT:  0.34,   // alto de la franja naranja inferior (fracción del alto)
+    GRAIN:        0.05,   // intensidad del grano (0.03–0.06)
+    LERP:         0.06,   // suavizado del seguimiento del cursor (0.05–0.08)
+    DIM_ON_SCROLL: 0.38,  // brillo que conserva la luz al bajar por la página (1 = no se atenúa)
+    DPR_MAX:      1.5,    // límite de resolución para rendimiento
+    COLORS: {
+      navyTop:  "#04071a", // base arriba y esquinas
+      navyLow:  "#0a1238", // base abajo
+      deep:     "#0b2a7a", // azul oscuro (cima de la campana / haz superior)
+      electric: "#1f5fe0", // azul eléctrico
+      cyan:     "#7cc4ff", // cian luminoso
+      ice:      "#b9e3ff", // núcleo azul claro
+      cream:    "#fff1e6", // transición crema
+      peach:    "#ffb38a", // melocotón
+      orange:   "#ff7a3d", // naranja
+      coral:    "#f0574a", // coral de la base
+      violet:   "#3b2a8f"  // laterales de la franja inferior
+    }
+  };
+
+  (function () {
+    const canvas = document.getElementById("bg-canvas");
+    const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false })
+            || canvas.getContext("experimental-webgl");
+    if (!gl) { document.documentElement.classList.add("no-webgl"); canvas.remove(); return; }
+
+    const v3 = hex => {
+      const n = parseInt(hex.slice(1), 16);
+      return `vec3(${((n >> 16) & 255) / 255},${((n >> 8) & 255) / 255},${(n & 255) / 255})`;
+    };
+    const f = n => Number(n).toFixed(4);
+    const C = BG.COLORS;
+
+    const vert = `attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
+    const frag = `
+      precision highp float;
+      uniform vec2  uRes;
+      uniform float uTime;
+      uniform vec2  uC;     // x: centro suavizado de la campana (0–1) · y: cursor Y (0 arriba – 1 abajo)
+      uniform vec2  uL;     // x: posición del lóbulo · y: fuerza del lóbulo (0–1)
+      uniform float uDim;
+      uniform float uDpr;
+
+      const vec3 NAVY_T = ${v3(C.navyTop)};
+      const vec3 NAVY_L = ${v3(C.navyLow)};
+      const vec3 DEEP   = ${v3(C.deep)};
+      const vec3 ELEC   = ${v3(C.electric)};
+      const vec3 CYAN   = ${v3(C.cyan)};
+      const vec3 ICE    = ${v3(C.ice)};
+      const vec3 CREAM  = ${v3(C.cream)};
+      const vec3 PEACH  = ${v3(C.peach)};
+      const vec3 ORANGE = ${v3(C.orange)};
+      const vec3 CORAL  = ${v3(C.coral)};
+      const vec3 VIOLET = ${v3(C.violet)};
+
+      float hash(float n){ return fract(sin(n * 127.1) * 43758.5453); }
+      float hash2(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
+      // Rampa de color desde la base (t = 0) hasta la cima de la campana (t = 1)
+      vec3 ramp(float t){
+        vec3 c = CORAL;
+        c = mix(c, ORANGE, smoothstep(0.00, 0.14, t));
+        c = mix(c, PEACH,  smoothstep(0.14, 0.30, t));
+        c = mix(c, CREAM,  smoothstep(0.30, 0.42, t));
+        c = mix(c, ICE,    smoothstep(0.42, 0.52, t));
+        c = mix(c, CYAN,   smoothstep(0.52, 0.64, t));
+        c = mix(c, ELEC,   smoothstep(0.64, 0.80, t));
+        c = mix(c, DEEP,   smoothstep(0.80, 0.98, t));
+        return c;
+      }
+
+      void main(){
+        vec2 uv = gl_FragCoord.xy / uRes;          // y = 0 abajo
+        float px = gl_FragCoord.x / uDpr;          // píxeles CSS
+        float x = uv.x;
+
+        // ---- Estrías: una columna cada STRIPE_PX px, con brillo propio por columna
+        float col  = floor(px / ${f(BG.STRIPE_PX)});
+        float r    = hash(col);
+        float fr   = fract(px / ${f(BG.STRIPE_PX)});
+        float line = smoothstep(0.0, 0.35, fr) * smoothstep(1.0, 0.6, fr);
+        float flick = 0.55 + 0.45 * sin(r * 6.2831 + uTime * (0.5 + r * 0.9));
+
+        // ---- Envolvente de la campana (gaussiana) + lóbulo del cursor
+        float aspect = uRes.x / uRes.y;
+        float W = ${f(BG.BELL_WIDTH)} * clamp(1.25 / aspect, 1.0, 2.3);
+        float d = (x - uC.x) / W;
+        float H = ${f(BG.BELL_HEIGHT)} + ${f(BG.BELL_RANGE)} * (0.5 - uC.y) * 2.0;
+        float lobe = uL.y * ${f(BG.LOBE_HEIGHT)} * exp(-pow((x - uL.x) / ${f(BG.LOBE_WIDTH)}, 2.0));
+        // "respiración" de audio: cada columna sube y baja un poco con el tiempo
+        float alive = 1.0
+          + 0.045 * sin(uTime * 1.4 + col * 0.23)
+          + 0.035 * sin(uTime * 2.3 - x * 22.0)
+          + 0.05  * (r - 0.5);
+        float env = max(0.001, (H * exp(-d * d) + lobe) * alive);
+        float rel = uv.y / env;                       // 0 en la base, 1 en la cima
+        float mask = 1.0 - smoothstep(0.80, 1.10, rel);
+        float core = exp(-d * d * 0.9);
+
+        // ---- Fondo marino con viñeteado
+        vec3 bg = mix(NAVY_L, NAVY_T, smoothstep(0.0, 0.9, uv.y));
+        float vig = smoothstep(1.25, 0.25, length((uv - vec2(0.5, 0.38)) * vec2(1.0, 1.15)));
+
+        // ---- Campana con rampa de color y estrías (más marcadas en la zona azul)
+        float stripeAmt = mix(0.30, 0.85, smoothstep(0.25, 0.65, rel));
+        float stripe = mix(1.0, (0.35 + 0.65 * line) * (0.5 + 0.5 * flick), stripeAmt);
+        vec3 bell = ramp(clamp(rel, 0.0, 1.0)) * mask * (0.26 + 0.80 * core) * stripe;
+
+        // ---- Haz azul que sigue subiendo por encima de la campana hasta arriba
+        float beamX = exp(-d * d * 0.42);
+        float beam = beamX * (1.0 - mask) * smoothstep(1.15, 0.15, uv.y - env * 0.6);
+        vec3 beamC = mix(DEEP, ELEC, 0.45) * beam * (0.25 + 0.75 * line) * (0.45 + 0.55 * flick) * 1.05;
+
+        // ---- Bloom alrededor del núcleo cian
+        float bloom = exp(-d * d * 0.30) * exp(-pow((rel - 0.5) / 0.45, 2.0));
+        vec3 bloomC = mix(ICE, CYAN, 0.4) * bloom * 0.22;
+
+        // ---- Franja naranja-coral inferior, a todo el ancho, con violeta a los lados
+        float by = smoothstep(${f(BG.BAND_HEIGHT)}, 0.0, uv.y);
+        float bx = exp(-pow((x - uC.x) / 0.75, 2.0));
+        vec3 bandC = mix(VIOLET, mix(ORANGE, CORAL, 0.6 * smoothstep(0.06, 0.0, uv.y)), smoothstep(0.05, 0.75, bx));
+        vec3 band = bandC * pow(by, 1.5) * (0.40 + 0.60 * bx) * (0.85 + 0.15 * line) * 1.15;
+
+        // ---- Estrellas tenues en la parte alta
+        vec2 g = floor(gl_FragCoord.xy / uDpr / 2.0);
+        float sh = hash2(g);
+        float star = step(0.9985, sh) * smoothstep(0.45, 0.95, uv.y) * (0.5 + 0.5 * sin(uTime * 1.7 + sh * 40.0)) * (1.0 - core);
+
+        vec3 light = bell + beamC + bloomC + band;
+        float m = max(light.r, max(light.g, light.b));
+        light *= (1.0 - exp(-m * 1.5)) / max(m, 1e-4);   // compresión que conserva el tono: el núcleo brilla sin quemarse a blanco
+        vec3 col3 = bg * mix(0.45, 1.0, vig) + light * uDim * mix(0.55, 1.0, vig) + star * 0.55;
+
+        // ---- Grano de película
+        col3 += (hash2(gl_FragCoord.xy + fract(uTime * 0.37) * 113.0) - 0.5) * ${f(BG.GRAIN)};
+        gl_FragColor = vec4(clamp(col3, 0.0, 1.0), 1.0);
+      }`;
+
+    function compile(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    let prog;
+    try {
+      prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, vert));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, frag));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    } catch (err) {
+      console.warn("Fondo WebGL desactivado:", err);
+      document.documentElement.classList.add("no-webgl"); canvas.remove(); return;
+    }
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, "p");
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    const U = {};
+    ["uRes", "uTime", "uC", "uL", "uDim", "uDpr"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+
+    let dpr = 1;
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, BG.DPR_MAX);
+      const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      gl.viewport(0, 0, w, h);
+    }
+
+    // ---- Entrada: ratón en window; dedo en táctil; vaivén automático sin interacción
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let tx = .5, ty = .45, cx = .5, cy = .45;   // objetivo y valor suavizado
+    let lx = .5, lobe = 0;                       // lóbulo del cursor
+    let lastMove = -1e9, isTouch = false;
+
+    function onMove(x, y, touch) {
+      tx = x / innerWidth; ty = y / innerHeight;
+      lastMove = performance.now(); isTouch = touch;
+    }
+    window.addEventListener("pointermove", e => onMove(e.clientX, e.clientY, e.pointerType === "touch"), { passive: true });
+    window.addEventListener("touchstart", e => { const t = e.touches[0]; if (t) onMove(t.clientX, t.clientY, true); }, { passive: true });
+    window.addEventListener("touchmove",  e => { const t = e.touches[0]; if (t) onMove(t.clientX, t.clientY, true); }, { passive: true });
+
+    function frame(now) {
+      const t = now / 1000;
+      const idle = (now - lastMove) / 1000;
+
+      if (idle > 1.5) {
+        // Sin movimiento: en ordenador vuelve despacio al centro; en táctil (o al principio) se balancea solo
+        const autoSway = isTouch || lastMove < 0;
+        const gx = autoSway ? .5 + Math.sin(t * .28) * .22 : .5;
+        const gy = autoSway ? .45 + Math.sin(t * .21) * .08 : .45;
+        cx += (gx - cx) * .012; cy += (gy - cy) * .012;
+      } else {
+        cx += (tx - cx) * BG.LERP; cy += (ty - cy) * BG.LERP;
+      }
+      lx += (tx - lx) * .15;
+      lobe += ((idle < .6 ? 1 : 0) - lobe) * .04;
+
+      const dim = BG.DIM_ON_SCROLL + (1 - BG.DIM_ON_SCROLL) * (1 - Math.min(1, scrollY / innerHeight));
+
+      gl.uniform2f(U.uRes, canvas.width, canvas.height);
+      gl.uniform1f(U.uTime, still ? 0 : t);
+      gl.uniform2f(U.uC, cx, cy);
+      gl.uniform2f(U.uL, lx, lobe);
+      gl.uniform1f(U.uDim, dim);
+      gl.uniform1f(U.uDpr, dpr);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+
+    let visible = true;
+    document.addEventListener("visibilitychange", () => { visible = !document.hidden; if (visible && !still) requestAnimationFrame(loop); });
+    function loop(now) { if (!visible) return; frame(now); requestAnimationFrame(loop); }
+
+    resize();
+    window.addEventListener("resize", () => { resize(); if (still) frame(performance.now()); });
+    if (still) {
+      // Movimiento reducido: fondo estático; solo se redibuja al bajar la página (para atenuar la luz)
+      frame(0);
+      window.addEventListener("scroll", () => frame(0), { passive: true });
+    } else requestAnimationFrame(loop);
+  })();
+</script>
+</body>
+</html>
